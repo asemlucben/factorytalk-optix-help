@@ -162,7 +162,11 @@ function loadVersion(v) {
 
 // ---------------------------------------------------------------------------
 // Fallback
-/
+// ---------------------------------------------------------------------------
+
+function showFrameError(url, reason = 'generic') {
+  const frame    = document.getElementById('help-frame');
+  const errorDiv = document.getElementById('frame-error');
   const errorMsg = document.getElementById('frame-error-message');
   frame.hidden   = false;      // keep in DOM but hidden behind error overlay
   errorDiv.hidden = false;
