@@ -1,0 +1,112 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only one deploy at a time; cancel in-flight runs for the same ref
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # -----------------------------------------------------------------------
+      # Prepare the build directory
+      # -----------------------------------------------------------------------
+      - name: Prepare dist/
+        run: |
+          mkdir -p dist
+          cp index.html app.js styles.css dist/
+          cp -r data dist/
+
+      # -----------------------------------------------------------------------
+      # Compute the GitHub Pages base URL from repository metadata
+      # -----------------------------------------------------------------------
+      - name: Compute base URL
+        id: pages_url
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          # GitHub Pages URL for user/org sites: https://<owner>.github.io
+          # For project sites: https://<owner>.github.io/<repo>
+          # Detect user/org site by checking if repo name matches <owner>.github.io
+          if [ "${REPO}" = "${OWNER}.github.io" ]; then
+            BASE_URL="https://${OWNER}.github.io"
+          else
+            BASE_URL="https://${OWNER}.github.io/${REPO}"
+          fi
+          echo "base_url=${BASE_URL}" >> "$GITHUB_OUTPUT"
+
+      # -----------------------------------------------------------------------
+      # Inject secrets and computed values into dist/index.html
+      # -----------------------------------------------------------------------
+      - name: Inject Google site verification token
+        env:
+          GOOGLE_SITE_VERIFICATION: ${{ secrets.GOOGLE_SITE_VERIFICATION }}
+        run: |
+          if [ -n "${GOOGLE_SITE_VERIFICATION}" ]; then
+            sed -i "s|__GOOGLE_SITE_VERIFICATION__|${GOOGLE_SITE_VERIFICATION}|g" dist/index.html
+          else
+            # Remove the meta tag entirely if the secret is not configured
+            sed -i '/__GOOGLE_SITE_VERIFICATION__/d' dist/index.html
+          fi
+
+      - name: Substitute base URL placeholder
+        run: |
+          BASE_URL="${{ steps.pages_url.outputs.base_url }}"
+          sed -i "s|__BASE_URL__|${BASE_URL}|g" dist/index.html
+
+      # -----------------------------------------------------------------------
+      # Generate sitemap.xml and robots.txt
+      # -----------------------------------------------------------------------
+      - name: Generate sitemap.xml
+        run: |
+          python scripts/generate_sitemap.py \
+            --base-url "${{ steps.pages_url.outputs.base_url }}" \
+            --output dist/sitemap.xml
+
+      - name: Generate robots.txt
+        run: |
+          BASE_URL="${{ steps.pages_url.outputs.base_url }}"
+          {
+            echo "User-agent: *"
+            echo "Allow: /"
+            echo ""
+            echo "Sitemap: ${BASE_URL}/sitemap.xml"
+          } > dist/robots.txt
+
+      # -----------------------------------------------------------------------
+      # Upload artefact and deploy
+      # -----------------------------------------------------------------------
+      - name: Upload Pages artefact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
