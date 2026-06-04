@@ -7,6 +7,7 @@ A simple static website that lets you browse all available versions of the Facto
 ## Features
 
 - **Version Selector** — Browse all discovered Optix help versions from a single dropdown  
+- **Language Selector** — Switch the embedded help language across the available cloud help folders  
 - **Embedded Viewer** — View documentation in an iframe without leaving the site  
 - **Deep Linking** — URLs are bookmarkable: `?v=1.7.3.39` to link directly to a specific version
 - **SEO Friendly** — Dynamically updated meta tags, sitemap, robots.txt for search engine indexing  
@@ -24,10 +25,10 @@ A simple static website that lets you browse all available versions of the Facto
 ## Usage
 
 1. Visit the deployed site (e.g., `https://asemlucben.github.io/factorytalk-optix-help/`)
-2. Select a version from the **Version** dropdown (or "Current" for the latest 4-part build)
+2. Select a version from the **Version** dropdown and a language from the **Language** dropdown (or "Current" for the latest 4-part build)
 3. The help documentation loads in the iframe below
 4. Click any link in the help → opens in a new tab
-5. Share a link like `?v=1.7.3.39` to bookmark a specific version
+5. Share a link like `?v=1.7.3.39&lang=en` to bookmark a specific version and language
 
 ## Limitations & Known Issues
 

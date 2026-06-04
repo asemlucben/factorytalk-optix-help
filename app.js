@@ -13,6 +13,7 @@
 
 const DATA_URL   = 'data/versions.json';
 const HELP_CLOUD = 'https://help.optix.cloud.rockwellautomation.com/';
+const LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'zh'];
 
 // Hosts explicitly allowed by Rockwell's frame-ancestors policy (relevant subset).
 // If current host is not allowed, embedding is guaranteed to fail.
@@ -45,6 +46,7 @@ async function init() {
   }
 
   buildDropdown();
+  buildLanguageDropdown();
   applyUrlState();
 }
 
@@ -80,11 +82,23 @@ function buildDropdown() {
   });
 
   select.addEventListener('change', () => {
-    const v = select.value;
-    const params = new URLSearchParams(window.location.search);
-    params.set('v', v);
-    history.pushState({ version: v }, '', `?${params.toString()}`);
-    loadVersion(v);
+    updateNavigationState({ version: select.value });
+  });
+}
+
+function buildLanguageDropdown() {
+  const select = document.getElementById('language-select');
+  select.innerHTML = '';
+
+  LANGUAGES.forEach(language => {
+    const opt = document.createElement('option');
+    opt.value = language;
+    opt.textContent = language;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener('change', () => {
+    updateNavigationState({ language: select.value });
   });
 }
 
@@ -95,12 +109,14 @@ function buildDropdown() {
 function applyUrlState() {
   const params = new URLSearchParams(window.location.search);
   const v = params.get('v') || 'current';
-  setDropdownValue(v);
-  loadVersion(v);
+  const lang = normalizeLanguage(params.get('lang'));
+  setDropdownValue('version-select', v);
+  setDropdownValue('language-select', lang);
+  loadVersion(v, lang);
 }
 
-function setDropdownValue(v) {
-  const select = document.getElementById('version-select');
+function setDropdownValue(selectId, v) {
+  const select = document.getElementById(selectId);
   // Try exact match
   for (const opt of select.options) {
     if (opt.value === v) {
@@ -112,6 +128,24 @@ function setDropdownValue(v) {
   if (select.options.length > 0) select.selectedIndex = 0;
 }
 
+function normalizeLanguage(language) {
+  return LANGUAGES.includes(language) ? language : 'en';
+}
+
+function updateNavigationState(changes) {
+  const params = new URLSearchParams(window.location.search);
+  const currentVersion = document.getElementById('version-select').value;
+  const currentLanguage = document.getElementById('language-select').value;
+
+  const nextVersion = changes.version ?? currentVersion;
+  const nextLanguage = normalizeLanguage(changes.language ?? currentLanguage);
+
+  params.set('v', nextVersion);
+  params.set('lang', nextLanguage);
+  history.pushState({ version: nextVersion, language: nextLanguage }, '', `?${params.toString()}`);
+  loadVersion(nextVersion, nextLanguage);
+}
+
 // ---------------------------------------------------------------------------
 // Version resolution & iFrame loading
 // ---------------------------------------------------------------------------
@@ -121,22 +155,22 @@ function resolveVersion(v) {
   return v;
 }
 
-function buildHelpUrl(resolved) {
-  return `${HELP_CLOUD}${resolved}/en/index.html`;
+function buildHelpUrl(resolved, language) {
+  return `${HELP_CLOUD}${resolved}/${language}/index.html`;
 }
 
 function canEmbedOnCurrentHost() {
   return FRAME_ALLOWED_HOSTS.has(window.location.hostname);
 }
 
-function loadVersion(v) {
+function loadVersion(v, language = 'en') {
   const resolved = resolveVersion(v);
   if (!resolved) {
     showFrameError(null);
     return;
   }
 
-  const url = buildHelpUrl(resolved);
+  const url = buildHelpUrl(resolved, normalizeLanguage(language));
   const frame      = document.getElementById('help-frame');
   const errorDiv   = document.getElementById('frame-error');
   const errorLink  = document.getElementById('frame-error-link');
@@ -161,7 +195,7 @@ function loadVersion(v) {
     loadingDiv.classList.add('hidden');
     loadingDiv.setAttribute('aria-hidden', 'true');
     showFrameError(url, 'blocked-host');
-    updateSEO(v, resolved);
+    updateSEO(v, resolved, language);
     return;
   }
 
@@ -194,7 +228,7 @@ function loadVersion(v) {
   }, BLOCK_DETECT_DELAY_MS);
 
   // Update SEO elements
-  updateSEO(v, resolved);
+  updateSEO(v, resolved, language);
 }
 
 // ---------------------------------------------------------------------------
@@ -223,17 +257,18 @@ function showFrameError(url, reason = 'generic') {
 // SEO — keep meta tags and canonical in sync with current version
 // ---------------------------------------------------------------------------
 
-function updateSEO(v, resolved) {
+function updateSEO(v, resolved, language) {
   const displayVersion = v === 'current' ? `Current (${resolved})` : resolved;
+  const displayLanguage = language ? ` (${language})` : '';
 
-  document.title = `FactoryTalk Optix ${displayVersion} Help — Help Browser`;
+  document.title = `FactoryTalk Optix ${displayVersion}${displayLanguage} Help — Help Browser`;
 
-  const desc = `FactoryTalk Optix ${displayVersion} online help documentation by Rockwell Automation.`;
+  const desc = `FactoryTalk Optix ${displayVersion}${displayLanguage} online help documentation by Rockwell Automation.`;
   setMeta('name', 'description', desc);
   setMeta('property', 'og:description', desc);
-  setMeta('property', 'og:title', `FactoryTalk Optix ${displayVersion} Help`);
+  setMeta('property', 'og:title', `FactoryTalk Optix ${displayVersion}${displayLanguage} Help`);
 
-  const pageUrl = `${window.location.origin}${window.location.pathname}?v=${encodeURIComponent(v)}`;
+  const pageUrl = `${window.location.origin}${window.location.pathname}?v=${encodeURIComponent(v)}&lang=${encodeURIComponent(normalizeLanguage(language))}`;
   const canonical = document.querySelector('link[rel="canonical"]');
   if (canonical) canonical.href = pageUrl;
   setMeta('property', 'og:url', pageUrl);

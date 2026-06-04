@@ -127,6 +127,10 @@ html, body {
   min-width: 160px;
 }
 
+.language-select {
+  min-width: 92px;
+}
+
 .version-select:hover,
 .version-select:focus {
   border-color: rgba(255,255,255,0.8);
