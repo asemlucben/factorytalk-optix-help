@@ -30,8 +30,8 @@ at the beginning (for example, 1.2.x.x may be absent while 1.3.x.x exists),
 so the scan only stops after a small run of consecutive empty minors once at
 least one version has already been discovered.
 
-This captures the highest build number for each release family, e.g.
-1.7.3.39 is recorded when 1.7.3.40 no longer exists.
+This captures the highest build number for each release family even when
+build numbers are sparse (for example, a high build like 1.7.0.804).
 """
 
 import json
@@ -49,7 +49,8 @@ MAJOR = 1
 START_MINOR = 3          # 1.3.5.2 is the earliest known version we have found
 MAX_MINOR = 99           # safety cap
 MAX_PATCH = 99           # safety cap per minor release family
-MAX_BUILD = 99           # safety cap per release build number
+MAX_BUILD = 5000         # safety cap per release build number
+MAX_BUILD_MISS_STREAK = 1000  # stop patch scan after this many misses after a hit
 MAX_EMPTY_MINORS = 3     # stop after this many empty minors once discovery started
 
 HELP_URL_TEMPLATE = (
@@ -110,6 +111,7 @@ def scan_versions() -> list[str]:
 
         for patch in range(0, MAX_PATCH + 1):
             latest_for_release: str | None = None
+            miss_streak = 0
 
             for build in range(0, MAX_BUILD + 1):
                 ver_str = f"{MAJOR}.{minor}.{patch}.{build}"
@@ -118,11 +120,14 @@ def scan_versions() -> list[str]:
                 if version_exists(MAJOR, minor, patch, build):
                     print("✓ found")
                     latest_for_release = ver_str
+                    miss_streak = 0
                 else:
                     print("✗ not found")
                     if latest_for_release is not None:
-                        # We have already seen this patch family; the first gap
-                        # after a hit means the family has ended.
+                        miss_streak += 1
+                    if latest_for_release is not None and miss_streak >= MAX_BUILD_MISS_STREAK:
+                        # Build numbers can be sparse; stop only after a long
+                        # consecutive miss run once this patch family started.
                         break
                     # Leading gaps are allowed, so keep probing later builds.
 
@@ -130,6 +135,10 @@ def scan_versions() -> list[str]:
                 found.append(latest_for_release)
                 found_in_minor = True
                 found_patch_in_minor = True
+            elif patch == 0:
+                # If x.minor.0.x does not exist at all, higher patch families
+                # for the same minor are not expected.
+                break
             elif found_patch_in_minor:
                 # Once a minor has started yielding patch families, the first
                 # fully missing patch family means higher patch numbers are not
