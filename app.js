@@ -15,6 +15,13 @@ const DATA_URL   = 'data/versions.json';
 const HELP_BASE  = 'https://www.rockwellautomation.com/en-us/docs/factorytalk-optix/';
 const HELP_CLOUD = 'https://help.optix.cloud.rockwellautomation.com/';
 
+// Hosts explicitly allowed by Rockwell's frame-ancestors policy (relevant subset).
+// If current host is not allowed, embedding is guaranteed to fail.
+const FRAME_ALLOWED_HOSTS = new Set([
+  'localhost',
+  'rockwellautomation.github.io'
+]);
+
 // Time (ms) to wait after iframe.onload before assuming a silent block occurred.
 // Some browsers fire onload immediately when the frame is blocked.
 const BLOCK_DETECT_DELAY_MS = 3000;
@@ -116,6 +123,10 @@ function buildHelpUrl(resolved) {
   return `${HELP_BASE}${ver}/contents-ditamap.html`;
 }
 
+function canEmbedOnCurrentHost() {
+  return FRAME_ALLOWED_HOSTS.has(window.location.hostname);
+}
+
 function loadVersion(v) {
   const resolved = resolveVersion(v);
   if (!resolved) {
@@ -142,6 +153,15 @@ function loadVersion(v) {
 
   // Cancel any pending block-detection timer
   clearTimeout(blockDetectTimer);
+
+  // Deterministic fallback: this host is not in Rockwell's frame allowlist.
+  if (!canEmbedOnCurrentHost()) {
+    loadingDiv.classList.add('hidden');
+    loadingDiv.setAttribute('aria-hidden', 'true');
+    showFrameError(url, 'blocked-host');
+    updateSEO(v, resolved);
+    return;
+  }
 
   frame.onload = () => {
     frameLoadSucceeded = true;
