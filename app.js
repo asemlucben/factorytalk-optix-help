@@ -15,8 +15,6 @@ const DATA_URL   = 'data/versions.json';
 const HELP_BASE  = 'https://www.rockwellautomation.com/en-us/docs/factorytalk-optix/';
 const HELP_CLOUD = 'https://help.optix.cloud.rockwellautomation.com/';
 
-const FRAME_ALLOWED_HOSTS = new Set(['rockwellautomation.github.io']);
-
 // Time (ms) to wait after iframe.onload before assuming a silent block occurred.
 // Some browsers fire onload immediately when the frame is blocked.
 const BLOCK_DETECT_DELAY_MS = 3000;
@@ -117,10 +115,6 @@ function buildHelpUrl(resolved) {
   return `${HELP_BASE}${ver}/contents-ditamap.html`;
 }
 
-function canAttemptEmbed() {
-  return FRAME_ALLOWED_HOSTS.has(window.location.hostname);
-}
-
 function loadVersion(v) {
   const resolved = resolveVersion(v);
   if (!resolved) {
@@ -148,15 +142,6 @@ function loadVersion(v) {
   // Cancel any pending block-detection timer
   clearTimeout(blockDetectTimer);
 
-  // Skip iframe attempts when this site host is not in the allowlist
-  if (!canAttemptEmbed()) {
-    loadingDiv.classList.add('hidden');
-    loadingDiv.setAttribute('aria-hidden', 'true');
-    showFrameError(url, 'blocked-host');
-    updateSEO(v, resolved);
-    return;
-  }
-
   frame.onload = () => {
     loadingDiv.classList.add('hidden');
     loadingDiv.setAttribute('aria-hidden', 'true');
@@ -177,11 +162,7 @@ function loadVersion(v) {
 
 // ---------------------------------------------------------------------------
 // Fallback
-// ---------------------------------------------------------------------------
-
-function showFrameError(url, reason = 'generic') {
-  const frame    = document.getElementById('help-frame');
-  const errorDiv = document.getElementById('frame-error');
+/
   const errorMsg = document.getElementById('frame-error-message');
   frame.hidden   = false;      // keep in DOM but hidden behind error overlay
   errorDiv.hidden = false;
