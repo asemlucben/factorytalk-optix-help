@@ -225,59 +225,6 @@ html, body {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* -------------------------------------------------------------------------
-   Frame error fallback
-------------------------------------------------------------------------- */
-#frame-error {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-bg);
-}
-
-#frame-error[hidden] { display: none; }
-
-.frame-error-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  max-width: 400px;
-  padding: 32px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-sm);
-  text-align: center;
-  color: var(--color-text-muted);
-}
-
-.frame-error-inner svg {
-  color: var(--color-brand);
-  opacity: 0.7;
-  flex-shrink: 0;
-}
-
-.btn-primary {
-  display: inline-block;
-  padding: 8px 20px;
-  background: var(--color-brand);
-  color: #fff;
-  border-radius: var(--radius);
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 0.85rem;
-  transition: background-color var(--transition);
-}
-
-.btn-primary:hover,
-.btn-primary:focus {
-  background: var(--color-brand-dark);
-  outline: none;
-}
-
-/* -------------------------------------------------------------------------
    Footer
 ------------------------------------------------------------------------- */
 .site-footer {

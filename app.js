@@ -5,7 +5,7 @@
  *  - Load data/versions.json and populate the version dropdown
  *  - Map ?v= query parameter to the correct iFrame URL
  *  - Update browser history (pushState) when version changes
- *  - Detect iFrame embedding failures and show a fallback
+ *  - Load selected help pages in an iFrame
  *  - Keep <title>, <meta description> and <link rel="canonical"> in sync
  */
 
@@ -15,13 +15,7 @@ const DATA_URL   = 'data/versions.json';
 const HELP_CLOUD = 'https://ftoptix-help.qplatform.it/';
 const LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'zh'];
 
-// Time (ms) to wait after iframe.onload before assuming a silent block occurred.
-// Some browsers fire onload immediately when the frame is blocked.
-const BLOCK_DETECT_DELAY_MS = 3000;
-
 let versionsData = null;
-let blockDetectTimer = null;
-let frameLoadSucceeded = false;
 
 // ---------------------------------------------------------------------------
 // Initialisation
@@ -34,7 +28,9 @@ async function init() {
     versionsData = await resp.json();
   } catch (err) {
     console.error('Failed to load versions.json:', err);
-    showFrameError(null);
+    const loadingDiv = document.getElementById('frame-loading');
+    loadingDiv.classList.add('hidden');
+    loadingDiv.setAttribute('aria-hidden', 'true');
     return;
   }
 
@@ -154,81 +150,40 @@ function buildHelpUrl(resolved, language) {
 
 function loadVersion(v, language = 'en') {
   const resolved = resolveVersion(v);
+  const loadingDiv = document.getElementById('frame-loading');
+
   if (!resolved) {
-    showFrameError(null);
+    loadingDiv.classList.add('hidden');
+    loadingDiv.setAttribute('aria-hidden', 'true');
     return;
   }
 
   const url = buildHelpUrl(resolved, normalizeLanguage(language));
-  const frame      = document.getElementById('help-frame');
-  const errorDiv   = document.getElementById('frame-error');
-  const errorLink  = document.getElementById('frame-error-link');
-  const extLink    = document.getElementById('external-link');
-  const loadingDiv = document.getElementById('frame-loading');
+  const frame = document.getElementById('help-frame');
+  const extLink = document.getElementById('external-link');
 
-  // Update external-link and error-link targets
-  extLink.href      = url;
-  errorLink.href    = url;
+  // Update external-link target
+  extLink.href = url;
 
-  // Reset state: show frame + loading overlay, hide error
-  frame.hidden      = false;
-  errorDiv.hidden   = true;
+  // Reset state: show loading overlay
   loadingDiv.classList.remove('hidden');
   loadingDiv.removeAttribute('aria-hidden');
 
-  // Cancel any pending block-detection timer
-  clearTimeout(blockDetectTimer);
-
   frame.onload = () => {
-    frameLoadSucceeded = true;
-    clearTimeout(blockDetectTimer);
     loadingDiv.classList.add('hidden');
     loadingDiv.setAttribute('aria-hidden', 'true');
   };
 
   frame.onerror = () => {
-    frameLoadSucceeded = false;
-    clearTimeout(blockDetectTimer);
+    console.error('Failed to load help frame:', url);
     loadingDiv.classList.add('hidden');
     loadingDiv.setAttribute('aria-hidden', 'true');
-    showFrameError(url, 'frame-error');
   };
 
   frame.src = url;
 
-  // Detect silent CSP blocks: if frame doesn't load real content within timeout, show error.
-  // CSP blocks often trigger onload with an error page, so we check the flag in timeout.
-  frameLoadSucceeded = false;
-  blockDetectTimer = setTimeout(() => {
-    if (!frameLoadSucceeded) {
-      loadingDiv.classList.add('hidden');
-      loadingDiv.setAttribute('aria-hidden', 'true');
-      showFrameError(url, 'frame-error');
-    }
-  }, BLOCK_DETECT_DELAY_MS);
-
   // Update SEO elements
   updateSEO(v, resolved, language);
-}
-
-// ---------------------------------------------------------------------------
-// Fallback
-// ---------------------------------------------------------------------------
-
-function showFrameError(url, reason = 'generic') {
-  const frame    = document.getElementById('help-frame');
-  const errorDiv = document.getElementById('frame-error');
-  const errorMsg = document.getElementById('frame-error-message');
-  frame.hidden   = false;      // keep in DOM but hidden behind error overlay
-  errorDiv.hidden = false;
-
-  if (errorMsg) {
-    errorMsg.textContent = 'The help content could not be embedded in this page due to cross-origin restrictions set by the source website.';
-  }
-
-  if (url) {
-    document.getElementById('frame-error-link').href = url;
-  }
 }
 
 // ---------------------------------------------------------------------------
