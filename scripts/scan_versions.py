@@ -94,13 +94,15 @@ def scan_versions() -> list[str]:
 
     for minor in range(START_MINOR, MAX_MINOR + 1):
         for patch in range(0, MAX_PATCH + 1):
+            latest_for_release: str | None = None
+
             for build in range(0, MAX_BUILD + 1):
                 ver_str = f"{MAJOR}.{minor}.{patch}.{build}"
                 print(f"  Checking {ver_str} … ", end="", flush=True)
 
                 if version_exists(MAJOR, minor, patch, build):
                     print("✓ found")
-                    found.append(ver_str)
+                    latest_for_release = ver_str
                 else:
                     print("✗ not found")
                     if build == 0:
@@ -112,6 +114,9 @@ def scan_versions() -> list[str]:
                         break
                     # build > 0 not found → this release family is complete
                     break
+
+            if latest_for_release:
+                found.append(latest_for_release)
 
     return found
 
@@ -127,7 +132,9 @@ def main() -> None:
         with DATA_FILE.open() as fh:
             existing = json.load(fh)
 
-    existing_versions: set[str] = set(existing.get("versions", []))
+    existing_versions: set[str] = {
+        version for version in existing.get("versions", []) if len(version.split(".")) == 4
+    }
 
     print("\nScanning for versions …")
     newly_found = scan_versions()

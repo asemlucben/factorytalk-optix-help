@@ -57,6 +57,7 @@ function buildDropdown() {
   select.innerHTML = '';
 
   const { versions = [], current } = versionsData;
+  const currentSegmentCount = current ? current.split('.').length : null;
 
   // "Current" entry always at the top
   if (current) {
@@ -68,6 +69,9 @@ function buildDropdown() {
 
   // Versions in descending order (latest first)
   [...versions].reverse().forEach(v => {
+    if (currentSegmentCount === 4 && v.split('.').length !== currentSegmentCount) {
+      return;
+    }
     const opt = document.createElement('option');
     opt.value = v;
     opt.textContent = v;
