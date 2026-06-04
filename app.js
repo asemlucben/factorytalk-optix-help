@@ -21,6 +21,7 @@ const BLOCK_DETECT_DELAY_MS = 3000;
 
 let versionsData = null;
 let blockDetectTimer = null;
+let frameLoadSucceeded = false;
 
 // ---------------------------------------------------------------------------
 // Initialisation
@@ -143,12 +144,14 @@ function loadVersion(v) {
   clearTimeout(blockDetectTimer);
 
   frame.onload = () => {
+    frameLoadSucceeded = true;
     clearTimeout(blockDetectTimer);
     loadingDiv.classList.add('hidden');
     loadingDiv.setAttribute('aria-hidden', 'true');
   };
 
   frame.onerror = () => {
+    frameLoadSucceeded = false;
     clearTimeout(blockDetectTimer);
     loadingDiv.classList.add('hidden');
     loadingDiv.setAttribute('aria-hidden', 'true');
@@ -157,11 +160,15 @@ function loadVersion(v) {
 
   frame.src = url;
 
-  // Detect silent CSP blocks: if frame doesn't load within timeout, show error
+  // Detect silent CSP blocks: if frame doesn't load real content within timeout, show error.
+  // CSP blocks often trigger onload with an error page, so we check the flag in timeout.
+  frameLoadSucceeded = false;
   blockDetectTimer = setTimeout(() => {
-    loadingDiv.classList.add('hidden');
-    loadingDiv.setAttribute('aria-hidden', 'true');
-    showFrameError(url, 'frame-error');
+    if (!frameLoadSucceeded) {
+      loadingDiv.classList.add('hidden');
+      loadingDiv.setAttribute('aria-hidden', 'true');
+      showFrameError(url, 'frame-error');
+    }
   }, BLOCK_DETECT_DELAY_MS);
 
   // Update SEO elements
