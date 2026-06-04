@@ -16,11 +16,11 @@ A simple static website that lets you browse all available versions of the Facto
 
 ## How It Works
 
-1. **Version Discovery** — A GitHub Actions workflow (`scan-versions.yml`) periodically scans Rockwell's cloud help server to discover the highest build for each release family and stores it in `data/versions.json`.
+1. **Version Discovery** — A GitHub Actions workflow (`scan-versions.yml`) periodically scans the configured help source to discover the highest build for each release family and stores it in `data/versions.json`.
 
 2. **Static Site** — The site runs on GitHub Pages (no server required). JavaScript loads the version list and manages the UI.
 
-3. **Base Tag Injection** — A `<base>` tag is injected into the fetched HTML to ensure relative URLs (stylesheets, images, scripts) resolve against Rockwell's servers, not the GitHub Pages domain.
+3. **Base Tag Injection** — A `<base>` tag is injected into the fetched HTML to ensure relative URLs (stylesheets, images, scripts) resolve against the upstream help host, not the GitHub Pages domain.
 
 ## Usage
 
@@ -45,8 +45,8 @@ A simple static website that lets you browse all available versions of the Facto
 ### "The help content could not be embedded..."
 
 This error can occur when:
-- You are viewing from a domain that Rockwell Automation has not allowed in their CORS policy
-- Rockwell's servers are temporarily unavailable
+- The source help site blocks iframe embedding from your domain
+- The source help servers are temporarily unavailable
 - A network issue prevents the frame from loading
 
 Try:

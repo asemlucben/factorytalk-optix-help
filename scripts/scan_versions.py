@@ -3,7 +3,7 @@
 scan_versions.py
 ----------------
 Discovers all available FactoryTalk Optix online help versions by probing
-the Rockwell Automation cloud help URL pattern and updates
+the qplatform help URL pattern and updates
 data/versions.json in-place (never removes existing versions).
 
 Algorithm
@@ -57,7 +57,7 @@ BUILD_BATCH_SIZE = 128    # number of builds to probe per concurrent batch
 MAX_WORKERS = 32         # thread count for parallel HEAD probes
 
 HELP_URL_TEMPLATE = (
-    "https://help.optix.cloud.rockwellautomation.com"
+    "https://ftoptix-help.qplatform.it"
     "/{major}.{minor}.{patch}.{build}/en/index.html"
 )
 

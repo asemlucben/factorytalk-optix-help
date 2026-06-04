@@ -12,15 +12,8 @@
 'use strict';
 
 const DATA_URL   = 'data/versions.json';
-const HELP_CLOUD = 'https://help.optix.cloud.rockwellautomation.com/';
+const HELP_CLOUD = 'https://ftoptix-help.qplatform.it/';
 const LANGUAGES = ['de', 'en', 'es', 'fr', 'it', 'ja', 'ko', 'pt', 'zh'];
-
-// Hosts explicitly allowed by Rockwell's frame-ancestors policy (relevant subset).
-// If current host is not allowed, embedding is guaranteed to fail.
-const FRAME_ALLOWED_HOSTS = new Set([
-  'localhost',
-  'rockwellautomation.github.io'
-]);
 
 // Time (ms) to wait after iframe.onload before assuming a silent block occurred.
 // Some browsers fire onload immediately when the frame is blocked.
@@ -159,10 +152,6 @@ function buildHelpUrl(resolved, language) {
   return `${HELP_CLOUD}${resolved}/${language}/index.html`;
 }
 
-function canEmbedOnCurrentHost() {
-  return FRAME_ALLOWED_HOSTS.has(window.location.hostname);
-}
-
 function loadVersion(v, language = 'en') {
   const resolved = resolveVersion(v);
   if (!resolved) {
@@ -189,15 +178,6 @@ function loadVersion(v, language = 'en') {
 
   // Cancel any pending block-detection timer
   clearTimeout(blockDetectTimer);
-
-  // Deterministic fallback: this host is not in Rockwell's frame allowlist.
-  if (!canEmbedOnCurrentHost()) {
-    loadingDiv.classList.add('hidden');
-    loadingDiv.setAttribute('aria-hidden', 'true');
-    showFrameError(url, 'blocked-host');
-    updateSEO(v, resolved, language);
-    return;
-  }
 
   frame.onload = () => {
     frameLoadSucceeded = true;
@@ -243,9 +223,7 @@ function showFrameError(url, reason = 'generic') {
   errorDiv.hidden = false;
 
   if (errorMsg) {
-    errorMsg.textContent = reason === 'blocked-host'
-      ? 'Embedding is blocked on this host by Rockwell Automation\'s frame security policy. Use the button below to open the selected version directly.'
-      : 'The help content could not be embedded in this page due to cross-origin restrictions set by Rockwell Automation.';
+    errorMsg.textContent = 'The help content could not be embedded in this page due to cross-origin restrictions set by the source website.';
   }
 
   if (url) {
