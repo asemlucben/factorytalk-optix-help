@@ -14,10 +14,16 @@ Starting at MAJOR.START_MINOR.0.0:
             for build = 0, 1, 2, ...:
                 if HEAD request → 200:  record the latest build for this release family
                 else (404):
-                    if build == 0:
-                        break inner loop (this patch family does not exist)
-                    else:
+                    if we have already seen a valid build in this patch family:
                         break inner loop (this release family is complete)
+                    else:
+                        continue probing later build numbers
+
+            if no build was found for this patch family:
+                if we have already found at least one patch in this minor:
+                    break patch loop (no need to probe higher patch numbers)
+                else:
+                    continue probing next patch family
 
 The scanner does not stop on the first missing minor. Some minors have gaps
 at the beginning (for example, 1.2.x.x may be absent while 1.3.x.x exists),
@@ -40,7 +46,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 MAJOR = 1
-START_MINOR = 2          # 1.2.0 is the earliest known version
+START_MINOR = 3          # 1.3.5.2 is the earliest known version we have found
 MAX_MINOR = 99           # safety cap
 MAX_PATCH = 99           # safety cap per minor release family
 MAX_BUILD = 99           # safety cap per release build number
@@ -100,6 +106,7 @@ def scan_versions() -> list[str]:
 
     for minor in range(START_MINOR, MAX_MINOR + 1):
         found_in_minor = False
+        found_patch_in_minor = False
 
         for patch in range(0, MAX_PATCH + 1):
             latest_for_release: str | None = None
@@ -113,19 +120,21 @@ def scan_versions() -> list[str]:
                     latest_for_release = ver_str
                 else:
                     print("✗ not found")
-                    if build == 0:
-                        if patch == 0:
-                            # x.minor.0.0 not found → no further minors exist
-                            print(f"\n  {MAJOR}.{minor}.0.0 not found — stopping scan.")
-                            return found
-                        # patch build 0 missing → try the next patch family
+                    if latest_for_release is not None:
+                        # We have already seen this patch family; the first gap
+                        # after a hit means the family has ended.
                         break
-                    # build > 0 not found → this release family is complete
-                    break
+                    # Leading gaps are allowed, so keep probing later builds.
 
             if latest_for_release:
                 found.append(latest_for_release)
                 found_in_minor = True
+                found_patch_in_minor = True
+            elif found_patch_in_minor:
+                # Once a minor has started yielding patch families, the first
+                # fully missing patch family means higher patch numbers are not
+                # expected for that same minor line.
+                break
 
         if found_in_minor:
             empty_minor_streak = 0
