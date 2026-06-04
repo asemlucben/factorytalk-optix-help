@@ -38,6 +38,7 @@ import json
 import sys
 import urllib.request
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,9 +50,11 @@ MAJOR = 1
 START_MINOR = 3          # 1.3.5.2 is the earliest known version we have found
 MAX_MINOR = 99           # safety cap
 MAX_PATCH = 99           # safety cap per minor release family
-MAX_BUILD = 5000         # safety cap per release build number
+MAX_BUILD = 1200         # safety cap per release build number
 MAX_BUILD_MISS_STREAK = 1000  # stop patch scan after this many misses after a hit
 MAX_EMPTY_MINORS = 3     # stop after this many empty minors once discovery started
+BUILD_BATCH_SIZE = 128    # number of builds to probe per concurrent batch
+MAX_WORKERS = 32         # thread count for parallel HEAD probes
 
 HELP_URL_TEMPLATE = (
     "https://help.optix.cloud.rockwellautomation.com"
@@ -60,7 +63,7 @@ HELP_URL_TEMPLATE = (
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "versions.json"
 
-REQUEST_TIMEOUT = 15  # seconds
+REQUEST_TIMEOUT = 2  # seconds
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +99,28 @@ def version_exists(major: int, minor: int, patch: int, build: int) -> bool:
         return False
 
 
+def probe_build_batch(
+    executor: ThreadPoolExecutor,
+    major: int,
+    minor: int,
+    patch: int,
+    build_start: int,
+    build_end: int,
+) -> list[tuple[int, bool]]:
+    """Probe a contiguous build range in parallel and return ordered results."""
+    futures = {
+        executor.submit(version_exists, major, minor, patch, build): build
+        for build in range(build_start, build_end + 1)
+    }
+
+    result_map: dict[int, bool] = {}
+    for future in as_completed(futures):
+        build = futures[future]
+        result_map[build] = future.result()
+
+    return [(build, result_map[build]) for build in range(build_start, build_end + 1)]
+
+
 # ---------------------------------------------------------------------------
 # Scanner
 # ---------------------------------------------------------------------------
@@ -105,55 +130,74 @@ def scan_versions() -> list[str]:
     found: list[str] = []
     empty_minor_streak = 0
 
-    for minor in range(START_MINOR, MAX_MINOR + 1):
-        found_in_minor = False
-        found_patch_in_minor = False
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        for minor in range(START_MINOR, MAX_MINOR + 1):
+            found_in_minor = False
+            found_patch_in_minor = False
 
-        for patch in range(0, MAX_PATCH + 1):
-            latest_for_release: str | None = None
-            miss_streak = 0
+            for patch in range(0, MAX_PATCH + 1):
+                latest_for_release: str | None = None
+                miss_streak = 0
+                build = 0
+                stop_patch_scan = False
 
-            for build in range(0, MAX_BUILD + 1):
-                ver_str = f"{MAJOR}.{minor}.{patch}.{build}"
-                print(f"  Checking {ver_str} … ", end="", flush=True)
+                while build <= MAX_BUILD:
+                    batch_end = min(build + BUILD_BATCH_SIZE - 1, MAX_BUILD)
+                    batch_results = probe_build_batch(
+                        executor,
+                        MAJOR,
+                        minor,
+                        patch,
+                        build,
+                        batch_end,
+                    )
 
-                if version_exists(MAJOR, minor, patch, build):
-                    print("✓ found")
-                    latest_for_release = ver_str
-                    miss_streak = 0
-                else:
-                    print("✗ not found")
-                    if latest_for_release is not None:
-                        miss_streak += 1
-                    if latest_for_release is not None and miss_streak >= MAX_BUILD_MISS_STREAK:
-                        # Build numbers can be sparse; stop only after a long
-                        # consecutive miss run once this patch family started.
+                    for build_number, exists in batch_results:
+                        ver_str = f"{MAJOR}.{minor}.{patch}.{build_number}"
+                        print(f"  Checking {ver_str} … ", end="", flush=True)
+
+                        if exists:
+                            print("✓ found")
+                            latest_for_release = ver_str
+                            miss_streak = 0
+                        else:
+                            print("✗ not found")
+                            if latest_for_release is not None:
+                                miss_streak += 1
+                            if latest_for_release is not None and miss_streak >= MAX_BUILD_MISS_STREAK:
+                                # Build numbers can be sparse; stop only after a long
+                                # consecutive miss run once this patch family started.
+                                stop_patch_scan = True
+                                break
+
+                    if stop_patch_scan:
                         break
-                    # Leading gaps are allowed, so keep probing later builds.
 
-            if latest_for_release:
-                found.append(latest_for_release)
-                found_in_minor = True
-                found_patch_in_minor = True
-            elif patch == 0:
-                # If x.minor.0.x does not exist at all, higher patch families
-                # for the same minor are not expected.
-                break
-            elif found_patch_in_minor:
-                # Once a minor has started yielding patch families, the first
-                # fully missing patch family means higher patch numbers are not
-                # expected for that same minor line.
-                break
+                    build = batch_end + 1
 
-        if found_in_minor:
-            empty_minor_streak = 0
-            continue
+                if latest_for_release:
+                    found.append(latest_for_release)
+                    found_in_minor = True
+                    found_patch_in_minor = True
+                elif patch == 0:
+                    # If x.minor.0.x does not exist at all, higher patch families
+                    # for the same minor are not expected.
+                    break
+                elif found_patch_in_minor:
+                    # Once a minor has started yielding patch families, the first
+                    # fully missing patch family means higher patch numbers are not
+                    # expected for that same minor line.
+                    break
 
-        if found:
-            empty_minor_streak += 1
-            if empty_minor_streak >= MAX_EMPTY_MINORS:
-                print(f"\n  No versions found for {MAX_EMPTY_MINORS} consecutive minors — stopping scan.")
-                break
+            if found_in_minor:
+                empty_minor_streak = 0
+                continue
+
+            if found:
+                empty_minor_streak += 1
+                if empty_minor_streak >= MAX_EMPTY_MINORS:
+                    print(f"\n  No versions found for {MAX_EMPTY_MINORS} consecutive minors — stopping scan.")
+                    break
 
     return found
 
