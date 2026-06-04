@@ -12,13 +12,17 @@ Starting at MAJOR.START_MINOR.0.0:
     for minor = START_MINOR, START_MINOR+1, ...:
         for patch = 0, 1, 2, ...:
             for build = 0, 1, 2, ...:
-                if HEAD request → 200:  record version, try next build
+                if HEAD request → 200:  record the latest build for this release family
                 else (404):
                     if build == 0:
-                        if patch == 0: STOP (this minor.0.0 missing → no further minors exist)
-                        else:          break inner loop (try next patch)
+                        break inner loop (this patch family does not exist)
                     else:
-                        break inner loop (try next patch)
+                        break inner loop (this release family is complete)
+
+The scanner does not stop on the first missing minor. Some minors have gaps
+at the beginning (for example, 1.2.x.x may be absent while 1.3.x.x exists),
+so the scan only stops after a small run of consecutive empty minors once at
+least one version has already been discovered.
 
 This captures the highest build number for each release family, e.g.
 1.7.3.39 is recorded when 1.7.3.40 no longer exists.
@@ -40,6 +44,7 @@ START_MINOR = 2          # 1.2.0 is the earliest known version
 MAX_MINOR = 99           # safety cap
 MAX_PATCH = 99           # safety cap per minor release family
 MAX_BUILD = 99           # safety cap per release build number
+MAX_EMPTY_MINORS = 3     # stop after this many empty minors once discovery started
 
 HELP_URL_TEMPLATE = (
     "https://help.optix.cloud.rockwellautomation.com"
@@ -91,8 +96,11 @@ def version_exists(major: int, minor: int, patch: int, build: int) -> bool:
 def scan_versions() -> list[str]:
     """Return a list of discovered version strings (e.g. ['1.7.3.39', ...])."""
     found: list[str] = []
+    empty_minor_streak = 0
 
     for minor in range(START_MINOR, MAX_MINOR + 1):
+        found_in_minor = False
+
         for patch in range(0, MAX_PATCH + 1):
             latest_for_release: str | None = None
 
@@ -117,6 +125,17 @@ def scan_versions() -> list[str]:
 
             if latest_for_release:
                 found.append(latest_for_release)
+                found_in_minor = True
+
+        if found_in_minor:
+            empty_minor_streak = 0
+            continue
+
+        if found:
+            empty_minor_streak += 1
+            if empty_minor_streak >= MAX_EMPTY_MINORS:
+                print(f"\n  No versions found for {MAX_EMPTY_MINORS} consecutive minors — stopping scan.")
+                break
 
     return found
 
