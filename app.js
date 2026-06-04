@@ -143,6 +143,7 @@ function loadVersion(v) {
   clearTimeout(blockDetectTimer);
 
   frame.onload = () => {
+    clearTimeout(blockDetectTimer);
     loadingDiv.classList.add('hidden');
     loadingDiv.setAttribute('aria-hidden', 'true');
   };
@@ -155,6 +156,13 @@ function loadVersion(v) {
   };
 
   frame.src = url;
+
+  // Detect silent CSP blocks: if frame doesn't load within timeout, show error
+  blockDetectTimer = setTimeout(() => {
+    loadingDiv.classList.add('hidden');
+    loadingDiv.setAttribute('aria-hidden', 'true');
+    showFrameError(url, 'frame-error');
+  }, BLOCK_DETECT_DELAY_MS);
 
   // Update SEO elements
   updateSEO(v, resolved);
