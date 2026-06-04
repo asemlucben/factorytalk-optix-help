@@ -3,18 +3,25 @@
 scan_versions.py
 ----------------
 Discovers all available FactoryTalk Optix online help versions by probing
-the Rockwell Automation documentation URL pattern and updates
+the Rockwell Automation cloud help URL pattern and updates
 data/versions.json in-place (never removes existing versions).
 
 Algorithm
 ---------
-Starting at MAJOR.START_MINOR.0:
-  for minor = START_MINOR, START_MINOR+1, ...:
-    for patch = 0, 1, 2, ...:
-      if HEAD request → 200:  record version, try next patch
-      else (404):
-        if patch == 0:  STOP (this minor.0 missing → no further minors exist)
-        else:           break inner loop (try next minor)
+Starting at MAJOR.START_MINOR.0.0:
+    for minor = START_MINOR, START_MINOR+1, ...:
+        for patch = 0, 1, 2, ...:
+            for build = 0, 1, 2, ...:
+                if HEAD request → 200:  record version, try next build
+                else (404):
+                    if build == 0:
+                        if patch == 0: STOP (this minor.0.0 missing → no further minors exist)
+                        else:          break inner loop (try next patch)
+                    else:
+                        break inner loop (try next patch)
+
+This captures the highest build number for each release family, e.g.
+1.7.3.39 is recorded when 1.7.3.40 no longer exists.
 """
 
 import json
@@ -31,11 +38,12 @@ from pathlib import Path
 MAJOR = 1
 START_MINOR = 2          # 1.2.0 is the earliest known version
 MAX_MINOR = 99           # safety cap
-MAX_PATCH = 20           # safety cap per minor
+MAX_PATCH = 99           # safety cap per minor release family
+MAX_BUILD = 99           # safety cap per release build number
 
 HELP_URL_TEMPLATE = (
-    "https://www.rockwellautomation.com/en-us/docs/factorytalk-optix"
-    "/{major}-{minor}-{patch}/contents-ditamap.html"
+    "https://help.optix.cloud.rockwellautomation.com"
+    "/{major}.{minor}.{patch}.{build}/en/index.html"
 )
 
 DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "versions.json"
@@ -47,13 +55,18 @@ REQUEST_TIMEOUT = 15  # seconds
 # Helpers
 # ---------------------------------------------------------------------------
 
-def build_url(major: int, minor: int, patch: int) -> str:
-    return HELP_URL_TEMPLATE.format(major=major, minor=minor, patch=patch)
+def build_url(major: int, minor: int, patch: int, build: int) -> str:
+    return HELP_URL_TEMPLATE.format(
+        major=major,
+        minor=minor,
+        patch=patch,
+        build=build,
+    )
 
 
-def version_exists(major: int, minor: int, patch: int) -> bool:
+def version_exists(major: int, minor: int, patch: int, build: int) -> bool:
     """Return True if the help page for this version responds with HTTP 200."""
-    url = build_url(major, minor, patch)
+    url = build_url(major, minor, patch, build)
     try:
         req = urllib.request.Request(url, method="HEAD")
         req.add_header("User-Agent", "Mozilla/5.0 (compatible; version-scanner/1.0)")
@@ -76,28 +89,29 @@ def version_exists(major: int, minor: int, patch: int) -> bool:
 # ---------------------------------------------------------------------------
 
 def scan_versions() -> list[str]:
-    """Return a list of discovered version strings (e.g. ['1.2.0', ...])."""
+    """Return a list of discovered version strings (e.g. ['1.7.3.39', ...])."""
     found: list[str] = []
 
     for minor in range(START_MINOR, MAX_MINOR + 1):
-        found_patch_for_this_minor = False
-
         for patch in range(0, MAX_PATCH + 1):
-            ver_str = f"{MAJOR}.{minor}.{patch}"
-            print(f"  Checking {ver_str} … ", end="", flush=True)
+            for build in range(0, MAX_BUILD + 1):
+                ver_str = f"{MAJOR}.{minor}.{patch}.{build}"
+                print(f"  Checking {ver_str} … ", end="", flush=True)
 
-            if version_exists(MAJOR, minor, patch):
-                print("✓ found")
-                found.append(ver_str)
-                found_patch_for_this_minor = True
-            else:
-                print("✗ not found")
-                if patch == 0:
-                    # x.minor.0 not found → no further minors exist
-                    print(f"\n  {MAJOR}.{minor}.0 not found — stopping scan.")
-                    return found
-                # patch > 0 not found → done with this minor, try next minor
-                break
+                if version_exists(MAJOR, minor, patch, build):
+                    print("✓ found")
+                    found.append(ver_str)
+                else:
+                    print("✗ not found")
+                    if build == 0:
+                        if patch == 0:
+                            # x.minor.0.0 not found → no further minors exist
+                            print(f"\n  {MAJOR}.{minor}.0.0 not found — stopping scan.")
+                            return found
+                        # patch build 0 missing → try the next patch family
+                        break
+                    # build > 0 not found → this release family is complete
+                    break
 
     return found
 

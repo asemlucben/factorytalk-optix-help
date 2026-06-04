@@ -12,7 +12,6 @@
 'use strict';
 
 const DATA_URL   = 'data/versions.json';
-const HELP_BASE  = 'https://www.rockwellautomation.com/en-us/docs/factorytalk-optix/';
 const HELP_CLOUD = 'https://help.optix.cloud.rockwellautomation.com/';
 
 // Hosts explicitly allowed by Rockwell's frame-ancestors policy (relevant subset).
@@ -119,8 +118,7 @@ function resolveVersion(v) {
 }
 
 function buildHelpUrl(resolved) {
-  const ver = resolved.replace(/\./g, '-');  // "1.7.0" → "1-7-0"
-  return `${HELP_BASE}${ver}/contents-ditamap.html`;
+  return `${HELP_CLOUD}${resolved}/en/index.html`;
 }
 
 function canEmbedOnCurrentHost() {

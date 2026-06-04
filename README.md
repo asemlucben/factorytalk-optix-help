@@ -8,14 +8,14 @@ A simple static website that lets you browse all available versions of the Facto
 
 - **Version Selector** — Browse all discovered Optix help versions from a single dropdown  
 - **Embedded Viewer** — View documentation in an iframe without leaving the site  
-- **Deep Linking** — URLs are bookmarkable: `?v=1.7.3` to link directly to a specific version  
+- **Deep Linking** — URLs are bookmarkable: `?v=1.7.3.39` to link directly to a specific version
 - **SEO Friendly** — Dynamically updated meta tags, sitemap, robots.txt for search engine indexing  
 - **Zero Server Setup** — Static HTML/JS hosted on GitHub Pages  
 - **New Tab Links** — All help page links open in new tabs (avoids cross-origin navigation issues)
 
 ## How It Works
 
-1. **Version Discovery** — A GitHub Actions workflow (`scan-versions.yml`) periodically scans Rockwell's help servers to discover new versions and stores them in `data/versions.json`.
+1. **Version Discovery** — A GitHub Actions workflow (`scan-versions.yml`) periodically scans Rockwell's cloud help server to discover the highest build for each release family and stores it in `data/versions.json`.
 
 2. **Static Site** — The site runs on GitHub Pages (no server required). JavaScript loads the version list and manages the UI.
 
@@ -24,10 +24,10 @@ A simple static website that lets you browse all available versions of the Facto
 ## Usage
 
 1. Visit the deployed site (e.g., `https://asemlucben.github.io/factorytalk-optix-help/`)
-2. Select a version from the **Version** dropdown (or "Current" for the latest)
+2. Select a version from the **Version** dropdown (or "Current" for the latest 4-part build)
 3. The help documentation loads in the iframe below
 4. Click any link in the help → opens in a new tab
-5. Share a link like `?v=1.7.3` to bookmark a specific version
+5. Share a link like `?v=1.7.3.39` to bookmark a specific version
 
 ## Limitations & Known Issues
 
